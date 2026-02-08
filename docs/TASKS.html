@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>hc11cc_py — Tasklist</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#0f1621; --panel2:#0c121b;
+      --grid:#1a2635; --text:#e7eef7; --muted:#9bb0c7;
+      --accent:#6aa6ff; --ok:#7ad69a; --warn:#ffcf5a; --bad:#ff6a6a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; background:linear-gradient(180deg,#070a0f 0%,#0b0f14 100%); color:var(--text); font-family:var(--sans);}
+    header{
+      position:sticky; top:0; z-index:10;
+      background:rgba(11,15,20,.85); backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(26,38,53,.8);
+    }
+    .wrap{max-width:1100px; margin:0 auto; padding:18px 16px;}
+    h1{margin:0; font-size:18px; letter-spacing:.2px;}
+    .sub{margin-top:6px; color:var(--muted); font-size:13px; line-height:1.35;}
+    .controls{
+      margin-top:14px; display:grid; grid-template-columns: 1fr auto auto auto; gap:10px;
+      align-items:center;
+    }
+    .search, .select, button{
+      border:1px solid rgba(26,38,53,.95);
+      background:rgba(15,22,33,.85);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 12px;
+      outline:none;
+      box-shadow: 0 0 0 rgba(0,0,0,0);
+      transition: border-color .15s ease, transform .05s ease;
+      font-size:14px;
+    }
+    .search::placeholder{color:rgba(155,176,199,.65)}
+    .search:focus, .select:focus, button:focus{border-color:rgba(106,166,255,.85)}
+    button{cursor:pointer; user-select:none}
+    button:active{transform: translateY(1px)}
+    main .wrap{padding-top:14px; padding-bottom:38px;}
+    .grid{display:grid; grid-template-columns: 1fr; gap:14px;}
+    @media (min-width: 980px){
+      .grid{grid-template-columns: 1fr 1fr;}
+      .span2{grid-column: 1 / -1;}
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(15,22,33,.92), rgba(12,18,27,.92));
+      border:1px solid rgba(26,38,53,.95);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .card header{
+      position:static;
+      background:transparent;
+      border-bottom:1px solid rgba(26,38,53,.65);
+      padding:14px 14px 12px 14px;
+    }
+    .card h2{margin:0; font-size:15px;}
+    .card .meta{margin-top:6px; color:var(--muted); font-size:12px; line-height:1.35;}
+    .card .body{padding:12px 14px 14px 14px;}
+    .task{
+      display:grid;
+      grid-template-columns: 22px 1fr;
+      gap:10px;
+      padding:9px 10px;
+      border-radius:12px;
+      border:1px solid transparent;
+      background:rgba(11,15,20,.35);
+      margin:8px 0;
+    }
+    .task:hover{border-color:rgba(26,38,53,.7); background:rgba(11,15,20,.55)}
+    .task input{margin-top:2px; width:18px; height:18px; accent-color: var(--accent);}
+    .task .txt{font-size:14px; line-height:1.25;}
+    .task .path{display:block; margin-top:6px; font-family:var(--mono); font-size:12px; color:rgba(155,176,199,.9)}
+    .task.done .txt{color:rgba(231,238,247,.75); text-decoration: line-through; text-decoration-thickness: 2px;}
+    .task.done .path{color:rgba(155,176,199,.55)}
+    .small{font-size:12px; color:var(--muted); line-height:1.35}
+    .bar{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(26,38,53,.65);
+      background:rgba(11,15,20,.4);
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(26,38,53,.8);
+      background:rgba(15,22,33,.6);
+      color:var(--muted);
+      font-size:12px;
+      user-select:none;
+    }
+    .dot{width:8px; height:8px; border-radius:999px; background:var(--warn);}
+    .dot.ok{background:var(--ok)}
+    .dot.bad{background:var(--bad)}
+    footer{border-top:1px solid rgba(26,38,53,.8); background:rgba(11,15,20,.6)}
+    footer .wrap{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;}
+    a{color:var(--accent); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .kbd{font-family:var(--mono); font-size:12px; color:rgba(231,238,247,.8)}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>hc11cc_py — Tasklist</h1>
+    <div class="sub">
+      Vista visual de tareas por integrante y por fase. El estado se guarda localmente en este navegador.
+      <span class="kbd">Búsqueda</span> filtra por texto, archivo o ruta.
+    </div>
+
+    <div class="controls">
+      <input id="search" class="search" placeholder="Buscar (ej. lexer, builder, backend, pytest -m ir)..." />
+      <select id="scope" class="select" title="Filtrar por área">
+        <option value="all">Todas las áreas</option>
+        <option value="frontend">Frontend</option>
+        <option value="ir">IR</option>
+        <option value="backend">Backend</option>
+        <option value="integracion">Integración</option>
+      </select>
+      <button id="collapseAll" type="button" title="Colapsar/expandir">Colapsar</button>
+      <button id="reset" type="button" title="Borrar progreso local">Reiniciar</button>
+    </div>
+
+    <div class="bar" style="margin-top:12px;">
+      <div class="pill"><span class="dot" id="dotGlobal"></span><span id="progressGlobal">0/0 completadas</span></div>
+      <div class="small">
+        Ejecutar suites:
+        <span class="kbd">pytest -m frontend</span>,
+        <span class="kbd">pytest -m ir</span>,
+        <span class="kbd">pytest -m backend</span>,
+        <span class="kbd">pytest -m integracion</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="grid" id="cards"></div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="small">
+      Archivo sugerido: <span class="kbd">TASKS.html</span> dentro del repo. Estado guardado en <span class="kbd">localStorage</span>.
+    </div>
+    <div class="small">
+      Atajos: <span class="kbd">Ctrl/Cmd + F</span> (buscar en página), <span class="kbd">Esc</span> (limpiar búsqueda).
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ----------------------------
+  // Data model (editable)
+  // ----------------------------
+  const DATA = [
+    {
+      id: "frontend",
+      titulo: "Integrante 1 — Frontend (lenguaje → AST)",
+      meta: [
+        "Carpeta: src/hc11cc/frontend/",
+        "Tests: pytest -m frontend",
+        "Contrato: producir AST válido; no conoce HC11"
+      ],
+      tareas: [
+        { id:"fe-lex-1", texto:"Implementar tokens: fn, main, let, return, u8", path:"src/hc11cc/frontend/lexer.py" },
+        { id:"fe-lex-2", texto:"Implementar símbolos: ->, :, =, +, -, (), {}, ;", path:"src/hc11cc/frontend/lexer.py" },
+        { id:"fe-lex-3", texto:"Implementar literales enteros 0..255 e identificadores", path:"src/hc11cc/frontend/lexer.py" },
+
+        { id:"fe-par-1", texto:"Parsear función única main", path:"src/hc11cc/frontend/parser.py" },
+        { id:"fe-par-2", texto:"Parsear let x: u8 = <expr>;", path:"src/hc11cc/frontend/parser.py" },
+        { id:"fe-par-3", texto:"Parsear return <expr>;", path:"src/hc11cc/frontend/parser.py" },
+        { id:"fe-par-4", texto:"Parsear expresiones + y - con paréntesis", path:"src/hc11cc/frontend/parser.py" },
+
+        { id:"fe-sema-1", texto:"Validar tipos u8", path:"src/hc11cc/frontend/sema.py" },
+        { id:"fe-sema-2", texto:"Error si literal > 255", path:"src/hc11cc/frontend/sema.py" },
+        { id:"fe-sema-3", texto:"Error si variable no existe", path:"src/hc11cc/frontend/sema.py" },
+        { id:"fe-sema-4", texto:"Error si variable se redeclara", path:"src/hc11cc/frontend/sema.py" },
+
+        { id:"fe-test-1", texto:"Endurecer casos válidos e inválidos", path:"tests/miembro1_frontend/test_frontend_smoke.py" },
+      ]
+    },
+    {
+      id: "ir",
+      titulo: "Integrante 2 — IR (AST → IR)",
+      meta: [
+        "Carpeta: src/hc11cc/ir/",
+        "Tests: pytest -m ir",
+        "Contrato: IR neutral (no conoce HC11)"
+      ],
+      tareas: [
+        { id:"ir-def-1", texto:"Definir estructuras: ModuloIR, FuncionIR, InstrIR", path:"src/hc11cc/ir/ir.py" },
+        { id:"ir-def-2", texto:"Instrucciones mínimas: ConstU8, LoadLocal, StoreLocal, AddU8, SubU8, Ret", path:"src/hc11cc/ir/ir.py" },
+
+        { id:"ir-bld-1", texto:"Construir IR desde AST (literales/variables/+/-/return)", path:"src/hc11cc/ir/builder.py" },
+        { id:"ir-bld-2", texto:"Contar temporales y locales", path:"src/hc11cc/ir/builder.py" },
+
+        { id:"ir-emit-1", texto:"Imprimir IR legible para debug", path:"src/hc11cc/ir/emit.py" },
+
+        { id:"ir-test-1", texto:"Verificar número de instrucciones y presencia de Ret", path:"tests/miembro2_ir/test_ir_smoke.py" },
+      ]
+    },
+    {
+      id: "backend",
+      titulo: "Integrante 3 — Backend HC11 (IR → ASM HC11)",
+      meta: [
+        "Carpeta: src/hc11cc/backend/hc11/",
+        "Tests: pytest -m backend",
+        "Contrato: generar .asm HC11 válido desde IR"
+      ],
+      tareas: [
+        { id:"be-isa-1", texto:"Definir AsmProgram y representación mínima de instrucciones", path:"src/hc11cc/backend/hc11/isa.py" },
+
+        { id:"be-isel-1", texto:"ConstU8 → LDAA #imm", path:"src/hc11cc/backend/hc11/isel.py" },
+        { id:"be-isel-2", texto:"LoadLocal / StoreLocal", path:"src/hc11cc/backend/hc11/isel.py" },
+        { id:"be-isel-3", texto:"AddU8 → LDAA lhs,X + ADDA rhs,X + STAA dst,X", path:"src/hc11cc/backend/hc11/isel.py" },
+        { id:"be-isel-4", texto:"SubU8 → LDAA lhs,X + SUBA rhs,X + STAA dst,X", path:"src/hc11cc/backend/hc11/isel.py" },
+        { id:"be-isel-5", texto:"Ret → RTS", path:"src/hc11cc/backend/hc11/isel.py" },
+
+        { id:"be-abi-1", texto:"ABI v0: ORG, LDS #stack_init, JSR main, halt (RTS/SWI)", path:"src/hc11cc/backend/hc11/program.py" },
+
+        { id:"be-emit-1", texto:"Emitir .asm HC11 con formato consistente", path:"src/hc11cc/backend/hc11/emit.py" },
+
+        { id:"be-test-1", texto:"Verificar asm contiene ORG/LDS/JSR main/RTS", path:"tests/miembro3_backend/test_backend_smoke.py" },
+      ]
+    },
+    {
+      id: "integracion",
+      titulo: "Integración (pipeline end-to-end)",
+      meta: [
+        "Archivo: src/hc11cc/driver.py",
+        "Tests: pytest -m integracion",
+        "Contrato: conectar fases; no meter lógica de fases aquí"
+      ],
+      tareas: [
+        { id:"int-1", texto:"Conectar pipeline: lex → parse → sema → build → select → wrap → emit", path:"src/hc11cc/driver.py" },
+        { id:"int-2", texto:"Endurecer smoke test: compilar return 7 y verificar main:/LDAA", path:"tests/integracion/test_pipeline_smoke.py" },
+        { id:"int-3", texto:"Acordar contratos mínimos (AST e IR) entre módulos", path:"(acuerdo de equipo)" },
+      ]
+    }
+  ];
+
+  // ----------------------------
+  // Persistence
+  // ----------------------------
+  const KEY = "hc11cc_py_task_state_v1";
+  const state = loadState();
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : {};
+    }catch(_){
+      return {};
+    }
+  }
+  function saveState(){
+    localStorage.setItem(KEY, JSON.stringify(state));
+  }
+
+  // ----------------------------
+  // Rendering
+  // ----------------------------
+  const elCards = document.getElementById("cards");
+  const elSearch = document.getElementById("search");
+  const elScope = document.getElementById("scope");
+  const elReset = document.getElementById("reset");
+  const elCollapseAll = document.getElementById("collapseAll");
+  const elProgressGlobal = document.getElementById("progressGlobal");
+  const elDotGlobal = document.getElementById("dotGlobal");
+
+  let collapsed = false;
+
+  function render(){
+    const q = (elSearch.value || "").trim().toLowerCase();
+    const scope = elScope.value;
+
+    elCards.innerHTML = "";
+
+    let total = 0, done = 0;
+
+    for(const section of DATA){
+      if(scope !== "all" && section.id !== scope) continue;
+
+      const card = document.createElement("section");
+      card.className = "card" + (scope === "all" ? "" : " span2");
+
+      const head = document.createElement("header");
+      const h2 = document.createElement("h2");
+      h2.textContent = section.titulo;
+      head.appendChild(h2);
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.innerHTML = section.meta.map(x => `<div>${escapeHtml(x)}</div>`).join("");
+      head.appendChild(meta);
+
+      const body = document.createElement("div");
+      body.className = "body";
+      body.style.display = collapsed ? "none" : "block";
+
+      const list = document.createElement("div");
+
+      for(const t of section.tareas){
+        const haystack = (t.texto + " " + (t.path || "")).toLowerCase();
+        if(q && !haystack.includes(q)) continue;
+
+        total++;
+        const checked = !!state[t.id];
+        if(checked) done++;
+
+        const row = document.createElement("label");
+        row.className = "task" + (checked ? " done" : "");
+        row.setAttribute("data-task-id", t.id);
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = checked;
+        cb.addEventListener("change", () => {
+          state[t.id] = cb.checked;
+          saveState();
+          render();
+        });
+
+        const txt = document.createElement("div");
+        txt.className = "txt";
+        txt.textContent = t.texto;
+
+        if(t.path){
+          const p = document.createElement("span");
+          p.className = "path";
+          p.textContent = t.path;
+          txt.appendChild(p);
+        }
+
+        row.appendChild(cb);
+        row.appendChild(txt);
+        list.appendChild(row);
+      }
+
+      body.appendChild(list);
+
+      const footer = document.createElement("div");
+      footer.className = "bar";
+      footer.style.marginTop = "12px";
+
+      const secStats = statsForSection(section, q);
+      const pill = document.createElement("div");
+      pill.className = "pill";
+      const dot = document.createElement("span");
+      dot.className = "dot " + (secStats.done === secStats.total && secStats.total > 0 ? "ok" : (secStats.done > 0 ? "" : "bad"));
+      const label = document.createElement("span");
+      label.textContent = `${secStats.done}/${secStats.total} completadas`;
+      pill.appendChild(dot);
+      pill.appendChild(label);
+
+      const hint = document.createElement("div");
+      hint.className = "small";
+      hint.textContent = "Puedes filtrar por texto o por área para enfocarte en una fase.";
+
+      footer.appendChild(pill);
+      footer.appendChild(hint);
+
+      card.appendChild(head);
+      card.appendChild(body);
+      card.appendChild(footer);
+
+      elCards.appendChild(card);
+    }
+
+    elProgressGlobal.textContent = `${done}/${total} completadas`;
+    elDotGlobal.className = "dot " + (done === total && total > 0 ? "ok" : (done > 0 ? "" : "bad"));
+  }
+
+  function statsForSection(section, q){
+    const query = (q || "").trim().toLowerCase();
+    let total = 0, done = 0;
+    for(const t of section.tareas){
+      const haystack = (t.texto + " " + (t.path || "")).toLowerCase();
+      if(query && !haystack.includes(query)) continue;
+      total++;
+      if(state[t.id]) done++;
+    }
+    return {total, done};
+  }
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  // ----------------------------
+  // Controls
+  // ----------------------------
+  elSearch.addEventListener("input", render);
+  elScope.addEventListener("change", render);
+
+  elReset.addEventListener("click", () => {
+    if(!confirm("¿Borrar el progreso guardado en este navegador?")) return;
+    for(const k of Object.keys(state)) delete state[k];
+    saveState();
+    render();
+  });
+
+  elCollapseAll.addEventListener("click", () => {
+    collapsed = !collapsed;
+    elCollapseAll.textContent = collapsed ? "Expandir" : "Colapsar";
+    render();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if(e.key === "Escape"){
+      elSearch.value = "";
+      render();
+    }
+  });
+
+  // Initial
+  render();
+</script>
+</body>
+</html>

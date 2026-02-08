@@ -1,0 +1,58 @@
+{
+  "config": {
+    "allow_filenames": [],
+    "allow_suffixes": [],
+    "generate_project_tree_only": false,
+    "include_root_text_files": true,
+    "limits": {
+      "max_file_bytes": 512000,
+      "max_total_bytes": 8000000
+    },
+    "preset": "python",
+    "selected_top_level": [
+      ".pytest_cache",
+      "README.md",
+      "docs",
+      "error.log",
+      "pyproject.toml",
+      "src",
+      "tests",
+      "tools"
+    ]
+  },
+  "ignore_rules": [
+    "*.dll",
+    "*.exe",
+    "*.jpeg",
+    "*.jpg",
+    "*.pdb",
+    "*.png",
+    "*.webp",
+    ".git",
+    ".idea",
+    ".vs",
+    "__pycache__",
+    "bin",
+    "node_modules",
+    "obj",
+    "*.pyc",
+    ".venv",
+    "__pycache__",
+    "venv"
+  ],
+  "outputs": {
+    "changes": "changes.diff",
+    "transcript": "transcript.txt"
+  },
+  "project_root": "Compilador_HC11",
+  "run_utc": "2026-02-08T20:03:54.337241+00:00",
+  "stats": {
+    "files_included": 39,
+    "total_bytes": 90539,
+    "visible_nodes": 55
+  },
+  "tool": {
+    "name": "ContextPacker",
+    "version": "0.2.0"
+  }
+}

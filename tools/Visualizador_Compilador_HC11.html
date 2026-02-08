@@ -1,0 +1,1289 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HC11 Language Spec — Visual Compiler Demo (v0)</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#0f1621; --grid:#1a2635; --text:#e7eef7; --muted:#9bb0c5;
+      --accent:#7dd3fc; --good:#34d399; --warn:#fbbf24; --bad:#fb7185;
+      --shadow: 0 12px 40px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:radial-gradient(1000px 600px at 20% 10%, #122033 0%, transparent 55%),
+               radial-gradient(800px 500px at 80% 30%, #1b2b3f 0%, transparent 60%),
+               var(--bg);
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      overflow:hidden;
+    }
+    .app{
+      height:100vh; display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:14px; padding:14px;
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:18px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .left{
+      display:grid;
+      grid-template-rows: auto auto auto 1fr auto;
+      min-width: 360px;
+    }
+    .header{
+      padding:14px 14px 10px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      gap:10px;
+    }
+    .header h1{font-size:14px; margin:0; letter-spacing:.35px; color:var(--text); line-height:1.15}
+    .header .pill{
+      font-size:12px; padding:6px 10px; border-radius:999px;
+      background:rgba(125, 211, 252, .12);
+      border:1px solid rgba(125, 211, 252, .25);
+      color:var(--accent);
+      white-space:nowrap;
+    }
+
+    .tabs{
+      padding:10px 14px;
+      display:flex; gap:8px; flex-wrap:wrap;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.10);
+    }
+    .tab{
+      appearance:none; border:none; cursor:pointer;
+      border-radius:12px; padding:8px 10px;
+      color:var(--muted);
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      transition: background .15s ease, border-color .15s ease;
+      font-weight:650; font-size:12.5px;
+    }
+    .tab.active{
+      color: #dbeafe;
+      background: rgba(125, 211, 252, .12);
+      border-color: rgba(125, 211, 252, .28);
+    }
+
+    .controls{
+      padding:12px 14px;
+      display:flex; gap:10px; flex-wrap:wrap;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    button{
+      appearance:none; border:none; cursor:pointer;
+      border-radius:12px; padding:10px 12px;
+      color:var(--text);
+      background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.10);
+      transition: transform .08s ease, background .15s ease, border-color .15s ease;
+      font-weight:650; font-size:13px;
+    }
+    button:hover{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.18) }
+    button:active{ transform: translateY(1px) }
+    button.primary{
+      background:rgba(52, 211, 153, .12);
+      border-color:rgba(52, 211, 153, .28);
+      color: #c9ffe8;
+    }
+    button.danger{
+      background:rgba(251, 113, 133, .12);
+      border-color:rgba(251, 113, 133, .28);
+      color:#ffd0d8;
+    }
+    button.ghost{
+      background:transparent;
+      border-color:rgba(255,255,255,.12);
+      color:var(--muted);
+      font-weight:650;
+    }
+
+    .pane{
+      padding:12px 14px;
+      display:none;
+      gap:10px;
+      overflow:auto;
+    }
+    .pane.active{ display:grid; }
+
+    textarea{
+      width:100%;
+      min-height:170px;
+      resize:none;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.22);
+      color:var(--text);
+      padding:12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:12.6px;
+      line-height:1.45;
+      outline:none;
+    }
+    .hint{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .hint code{ color:#dbeafe }
+
+    pre{
+      margin:0;
+      white-space:pre-wrap;
+      overflow:auto;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      padding:12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:12.2px;
+      line-height:1.35;
+      color:var(--text);
+    }
+    .k{ color:#dbeafe }
+    .m{ color: rgba(155,176,197,.95) }
+
+    .diagnostics{
+      padding:12px 14px;
+      border-top:1px solid rgba(255,255,255,.08);
+      background:rgba(0,0,0,.18);
+      min-height:120px;
+    }
+    .diag-title{ font-size:12px; color:var(--muted); letter-spacing:.3px; margin-bottom:8px }
+    .diag-item{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);
+      margin-bottom:8px;
+      white-space:pre-wrap;
+    }
+    .diag-item.good{ border-color:rgba(52,211,153,.25); background:rgba(52,211,153,.08) }
+    .diag-item.warn{ border-color:rgba(251,191,36,.25); background:rgba(251,191,36,.08) }
+    .diag-item.bad{ border-color:rgba(251,113,133,.25); background:rgba(251,113,133,.08) }
+
+    /* Right side */
+    .right{
+      position:relative;
+      display:grid;
+      grid-template-rows: 260px 1fr;
+      gap:14px;
+    }
+    .pipeline{
+      padding:14px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      overflow:hidden;
+    }
+    .stage{
+      flex:1;
+      min-width: 120px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);
+      padding:12px;
+      position:relative;
+      transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .stage .name{ font-size:12px; color:var(--muted); margin-bottom:6px; letter-spacing:.3px }
+    .stage .desc{ font-size:13px; line-height:1.25; color:var(--text) }
+    .stage.active{
+      border-color: rgba(125,211,252,.35);
+      background: rgba(125,211,252,.08);
+      transform: translateY(-2px);
+    }
+    .stage.done{
+      border-color: rgba(52,211,153,.22);
+      background: rgba(52,211,153,.06);
+    }
+    .arrow{
+      width:18px; height:18px;
+      opacity:.55;
+      flex:0 0 auto;
+    }
+
+    .viz{
+      padding:0;
+      position:relative;
+    }
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      background:
+        linear-gradient(transparent 24px, rgba(255,255,255,.04) 25px),
+        linear-gradient(90deg, transparent 24px, rgba(255,255,255,.04) 25px),
+        radial-gradient(500px 300px at 70% 30%, rgba(125,211,252,.08), transparent 55%),
+        radial-gradient(500px 300px at 25% 75%, rgba(52,211,153,.06), transparent 55%),
+        rgba(0,0,0,.15);
+      background-size: 25px 25px, 25px 25px, auto, auto, auto;
+    }
+
+    .overlay{
+      position:absolute; inset:14px 14px auto 14px;
+      display:flex; gap:12px; align-items:flex-start; pointer-events:none;
+    }
+    .panel{
+      pointer-events:none;
+      max-width: 560px;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.30);
+      backdrop-filter: blur(6px);
+      box-shadow: var(--shadow);
+    }
+    .panel .title{
+      font-size:12px; color:var(--muted); letter-spacing:.3px; margin-bottom:6px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .panel pre{
+      margin:0;
+      white-space:pre;
+      overflow:auto;
+      max-height: 58vh;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:12.5px;
+      line-height:1.35;
+      color:var(--text);
+    }
+    .badge{
+      font-size:11px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      color:var(--muted);
+    }
+
+    .legend{
+      position:absolute; right:14px; top:14px;
+      display:flex; flex-direction:column; gap:8px;
+      pointer-events:none;
+    }
+    .legend .row{
+      display:flex; align-items:center; gap:8px;
+      padding:8px 10px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.25);
+      backdrop-filter: blur(6px);
+      font-size:12px; color:var(--muted);
+      box-shadow: var(--shadow);
+      max-width: 300px;
+    }
+    .dot{ width:10px; height:10px; border-radius:999px; background:rgba(255,255,255,.35) }
+    .dot.a{ background: rgba(125,211,252,.8) }
+    .dot.g{ background: rgba(52,211,153,.8) }
+    .dot.b{ background: rgba(251,113,133,.8) }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="card left">
+    <div class="header">
+      <h1>HC11 Language Spec — demo visual (v0)</h1>
+      <div class="pill">spec → lexer → parser → IR → HC11 asm</div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="tab-spec">Especificación</button>
+      <button class="tab" data-tab="tab-editor">Editor</button>
+      <button class="tab" data-tab="tab-rules">Reglas</button>
+    </div>
+
+    <div class="controls">
+      <button class="primary" id="btnPlay">Play</button>
+      <button id="btnStep">Step</button>
+      <button class="ghost" id="btnReset">Reset</button>
+      <button class="danger" id="btnInjectErr">Inject error</button>
+    </div>
+
+    <div class="pane active" id="tab-spec">
+      <pre id="specText"></pre>
+      <div class="hint">
+        Esto es una <span class="k">visualización</span> del contrato. El compilador real en Python debe coincidir con estas reglas.
+      </div>
+    </div>
+
+    <div class="pane" id="tab-editor">
+      <textarea id="src"></textarea>
+      <div class="hint">
+        Subconjunto v0:
+        <code>fn main() -&gt; u8 { ... }</code>,
+        <code>let x: u8 = expr;</code>,
+        <code>return expr;</code>,
+        <code>+</code>, <code>-</code>, paréntesis, literales <code>0..255</code>.
+      </div>
+    </div>
+
+    <div class="pane" id="tab-rules">
+      <pre id="rulesText"></pre>
+      <div class="hint">
+        Las reglas semánticas son la capa que “convierte tokens válidos” en “programa válido”.
+      </div>
+    </div>
+
+    <div class="diagnostics" id="diags">
+      <div class="diag-title">Diagnostics</div>
+      <div class="diag-item good">Ready. Step o Play para ejecutar el pipeline.</div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="card pipeline" id="pipeline"></div>
+    <div class="card viz">
+      <canvas id="cv"></canvas>
+
+      <div class="overlay">
+        <div class="panel" style="flex:1">
+          <div class="title">
+            <span id="artifactTitle">Artifact</span>
+            <span class="badge" id="artifactBadge">SOURCE</span>
+          </div>
+          <pre id="artifact"></pre>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="row"><span class="dot a"></span><span>fase activa</span></div>
+        <div class="row"><span class="dot g"></span><span>transformación correcta</span></div>
+        <div class="row"><span class="dot b"></span><span>detención por error</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------- HC11 v0 Spec Visualizer -------------
+   Objetivo: enseñar especificación + visualizar transformaciones.
+   Pipeline (didáctico):
+     0 SOURCE
+     1 LEX   (tokens)
+     2 PARSE (AST)
+     3 SEMA  (validación semántica)
+     4 IR    (3-address)
+     5 HC11  (asm HC11 mínimo, estilo de tu prototipo)
+     6 BYTES (preview: opcode mapping de un subset)
+----------------------------------------------------- */
+
+const SPEC = `LANGUAGE SPEC (HC11 v0 / MVP)
+
+Propósito:
+- Validar un pipeline completo hacia 68HC11.
+- Lenguaje mínimo: main(), u8, let, return, +, -, paréntesis.
+
+Tipos:
+- u8 (0..255)
+
+Programa:
+- Solo una función: fn main() -> u8 { ... }
+- Sin parámetros.
+- Debe retornar u8.
+
+Statements:
+- let <ident>: u8 = <expr>;
+- return <expr>;
+
+Expresiones:
+- Literales 0..255
+- Variables
+- (expr)
+- expr + expr
+- expr - expr
+- Asociatividad: izquierda
+- Precedencia: + y - (mismo nivel)
+`;
+
+const RULES = `REGLAS SEMÁNTICAS (v0)
+
+1) Literales:
+- Un literal fuera de 0..255 es ERROR.
+
+2) Variables:
+- Deben declararse antes de usarse.
+- No se permite redeclaración en el mismo ámbito (main).
+
+3) Tipos:
+- Todo es u8.
+- + y - requieren u8 y producen u8.
+- (En v0: sin overflow-check; operación modulo 256 es aceptable a nivel máquina.)
+
+4) Retorno:
+- main debe contener al menos un return.
+- return expr produce un valor u8 en el registro A (por ABI).
+
+5) ABI (resumen didáctico):
+- ORG configurable (por defecto $0100).
+- Stack init configurable (por defecto $01FF).
+- start: LDS #stack; JSR main; halt: RTS|SWI.
+- Retorno: A.
+`;
+
+const STAGES = [
+  { key:"source", name:"Source", desc:"Texto del programa" },
+  { key:"lex",    name:"Lexing", desc:"Texto → tokens" },
+  { key:"parse",  name:"Parsing", desc:"Tokens → AST" },
+  { key:"sema",   name:"Semantic", desc:"AST → validación" },
+  { key:"ir",     name:"IR", desc:"AST → IR (3-address)" },
+  { key:"hc11",   name:"HC11 asm", desc:"IR → ensamblador HC11" },
+  { key:"bytes",  name:"Bytes", desc:"HC11 subset → bytes (preview)" },
+];
+
+// ---------- DOM ----------
+const dom = {
+  src: document.getElementById("src"),
+  specText: document.getElementById("specText"),
+  rulesText: document.getElementById("rulesText"),
+  artifactTitle: document.getElementById("artifactTitle"),
+  artifactBadge: document.getElementById("artifactBadge"),
+  artifact: document.getElementById("artifact"),
+  diags: document.getElementById("diags"),
+  pipeline: document.getElementById("pipeline"),
+  btnPlay: document.getElementById("btnPlay"),
+  btnStep: document.getElementById("btnStep"),
+  btnReset: document.getElementById("btnReset"),
+  btnInjectErr: document.getElementById("btnInjectErr"),
+  cv: document.getElementById("cv"),
+};
+
+dom.specText.textContent = SPEC;
+dom.rulesText.textContent = RULES;
+
+// Tabs
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".pane").forEach(p=>p.classList.remove("active"));
+    document.getElementById(btn.dataset.tab).classList.add("active");
+  });
+});
+
+function setDiag(items){
+  dom.diags.innerHTML = `<div class="diag-title">Diagnostics</div>` + items.map(x => {
+    const cls = x.sev === "error" ? "bad" : x.sev === "warn" ? "warn" : "good";
+    return `<div class="diag-item ${cls}">${escapeHtml(x.msg)}</div>`;
+  }).join("");
+}
+function escapeHtml(s){
+  return s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+}
+function setArtifact(title, badge, content){
+  dom.artifactTitle.textContent = title;
+  dom.artifactBadge.textContent = badge;
+  dom.artifact.textContent = content;
+}
+
+// ---------- Canvas animation ----------
+const ctx = dom.cv.getContext("2d");
+function resizeCanvas(){
+  const r = dom.cv.getBoundingClientRect();
+  dom.cv.width = Math.floor(r.width * devicePixelRatio);
+  dom.cv.height = Math.floor(r.height * devicePixelRatio);
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+let t0 = performance.now();
+function draw(scene){
+  const now = performance.now();
+  const t = (now - t0) / 1000;
+
+  ctx.clearRect(0,0,dom.cv.width, dom.cv.height);
+  const W = dom.cv.width, H = dom.cv.height;
+  const ay = H*0.62;
+
+  // flow lines
+  const lanes = 7;
+  for(let i=0;i<lanes;i++){
+    const y = ay + (i - lanes/2)*18*devicePixelRatio;
+    const speed = 40 + i*12;
+    const phase = (t*speed + i*97) % (W + 300);
+    for(let k=0;k<10;k++){
+      const x = (phase - k*140) - 150;
+      const a = Math.max(0, 0.18 - k*0.012);
+      ctx.fillStyle = `rgba(125,211,252,${a})`;
+      ctx.fillRect(x, y, 60*devicePixelRatio, 3*devicePixelRatio);
+    }
+  }
+
+  const pad = 80 * devicePixelRatio;
+  const x0 = pad;
+  const x1 = W - pad;
+
+  // baseline
+  ctx.strokeStyle = "rgba(255,255,255,.10)";
+  ctx.lineWidth = 1*devicePixelRatio;
+  ctx.beginPath();
+  ctx.moveTo(x0, ay);
+  ctx.lineTo(x1, ay);
+  ctx.stroke();
+
+  // stage ticks
+  for(let i=0;i<STAGES.length;i++){
+    const sx = x0 + (x1-x0) * (i/(STAGES.length-1));
+    ctx.fillStyle = i <= scene.stageIndex ? "rgba(52,211,153,.25)" : "rgba(255,255,255,.12)";
+    ctx.fillRect(sx-1*devicePixelRatio, ay-10*devicePixelRatio, 2*devicePixelRatio, 20*devicePixelRatio);
+  }
+
+  // artifact blob
+  const prog = scene.flow;
+  const ax = x0 + (x1-x0)*prog;
+
+  const glow = 18 + 6*Math.sin(t*3.2);
+  const color = scene.status === "error" ? "251,113,133" : scene.status === "ok" ? "52,211,153" : "125,211,252";
+  const g = ctx.createRadialGradient(ax, ay, 0, ax, ay, glow*devicePixelRatio);
+  g.addColorStop(0, `rgba(${color},0.55)`);
+  g.addColorStop(1, `rgba(${color},0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(ax, ay, glow*devicePixelRatio, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = scene.status === "error"
+    ? "rgba(251,113,133,.85)"
+    : scene.status === "ok"
+      ? "rgba(52,211,153,.85)"
+      : "rgba(125,211,252,.85)";
+  ctx.beginPath();
+  ctx.arc(ax, ay, 7*devicePixelRatio, 0, Math.PI*2);
+  ctx.fill();
+}
+
+// ---------- Compiler core (didáctico) ----------
+function CompileError(message){ return { type:"CompileError", message }; }
+
+function isAlpha(ch){ return /[a-zA-Z_]/.test(ch); }
+function isDigit(ch){ return /[0-9]/.test(ch); }
+function isAlnum(ch){ return /[a-zA-Z0-9_]/.test(ch); }
+
+const KEYWORDS = new Set(["fn","main","let","return","u8"]);
+const SYMBOLS = {
+  "(": "lpar", ")":"rpar", "{":"lbrace", "}":"rbrace",
+  ":":"colon", ";":"semi", "=":"eq", "+":"plus", "-":"minus"
+};
+
+function lex(input){
+  const tokens = [];
+  let i=0, line=1, col=1;
+
+  function push(type, value){
+    tokens.push({type, value, line, col});
+  }
+  function adv(n=1){
+    while(n-->0){
+      if(input[i]==="\n"){ line++; col=1; i++; }
+      else { i++; col++; }
+    }
+  }
+
+  while(i < input.length){
+    const ch = input[i];
+    if(ch===" "||ch==="\t"||ch==="\r"||ch==="\n"){ adv(); continue; }
+
+    // arrow ->
+    if(ch==="-" && input[i+1]===">"){
+      push("arrow","->");
+      adv(2);
+      continue;
+    }
+
+    if(isAlpha(ch)){
+      let j=i;
+      while(j < input.length && isAlnum(input[j])) j++;
+      const word = input.slice(i,j);
+      if(KEYWORDS.has(word)) push("kw", word);
+      else push("id", word);
+      adv(j-i);
+      continue;
+    }
+
+    if(isDigit(ch)){
+      let j=i;
+      while(j < input.length && isDigit(input[j])) j++;
+      push("num", input.slice(i,j));
+      adv(j-i);
+      continue;
+    }
+
+    const sym = SYMBOLS[ch];
+    if(sym){ push(sym, ch); adv(); continue; }
+
+    return { ok:false, error: CompileError(`Unexpected character '${ch}' at ${line}:${col}`) };
+  }
+
+  push("eof","<eof>");
+  return { ok:true, tokens };
+}
+
+// Recursive descent parser according to v0 grammar
+function parse(tokens){
+  let p=0;
+  function peek(){ return tokens[p]; }
+  function eat(type, value=null){
+    const t = peek();
+    if(!t || t.type!==type || (value!==null && t.value!==value)){
+      const got = t ? `${t.type}('${t.value}')` : "EOF";
+      const exp = value ? `${type}('${value}')` : type;
+      return { ok:false, error: CompileError(`Parse error: expected ${exp}, got ${got} at ${t?.line}:${t?.col}`) };
+    }
+    p++;
+    return { ok:true, tok:t };
+  }
+
+  // program ::= function
+  // function ::= fn main ( ) -> u8 { {stmt} }
+  // stmt ::= let_stmt | return_stmt
+  // let_stmt ::= let ident : u8 = expr ;
+  // return_stmt ::= return expr ;
+  // expr ::= factor { (+|-) factor }
+  // factor ::= int | ident | ( expr )
+  function parseProgram(){
+    const fn = parseFunction();
+    if(!fn.ok) return fn;
+    const eof = eat("eof");
+    if(!eof.ok) return eof;
+    return { ok:true, ast:{type:"Program", fn: fn.node} };
+  }
+
+  function parseFunction(){
+    let r;
+    r = eat("kw","fn"); if(!r.ok) return r;
+    r = eat("kw","main"); if(!r.ok) return r;
+    r = eat("lpar","("); if(!r.ok) return r;
+    r = eat("rpar",")"); if(!r.ok) return r;
+    r = eat("arrow","->"); if(!r.ok) return r;
+    r = eat("kw","u8"); if(!r.ok) return r;
+    r = eat("lbrace","{"); if(!r.ok) return r;
+
+    const body = [];
+    while(peek().type !== "rbrace" && peek().type !== "eof"){
+      const st = parseStmt();
+      if(!st.ok) return st;
+      body.push(st.node);
+    }
+
+    r = eat("rbrace","}"); if(!r.ok) return r;
+    return { ok:true, node:{type:"Function", name:"main", ret:"u8", body} };
+  }
+
+  function parseStmt(){
+    const t = peek();
+    if(t.type==="kw" && t.value==="let"){
+      eat("kw","let");
+      const id = eat("id"); if(!id.ok) return id;
+      let r = eat("colon",":"); if(!r.ok) return r;
+      r = eat("kw","u8"); if(!r.ok) return r;
+      r = eat("eq","="); if(!r.ok) return r;
+      const ex = parseExpr(); if(!ex.ok) return ex;
+      r = eat("semi",";"); if(!r.ok) return r;
+      return { ok:true, node:{type:"Let", name:id.tok.value, ty:"u8", expr:ex.node} };
+    }
+    if(t.type==="kw" && t.value==="return"){
+      eat("kw","return");
+      const ex = parseExpr(); if(!ex.ok) return ex;
+      const r = eat("semi",";"); if(!r.ok) return r;
+      return { ok:true, node:{type:"Return", expr:ex.node} };
+    }
+    return { ok:false, error: CompileError(`Parse error: unexpected token ${t.type}('${t.value}') at ${t.line}:${t.col}`) };
+  }
+
+  function parseExpr(){
+    let left = parseFactor();
+    if(!left.ok) return left;
+    while(peek().type==="plus" || peek().type==="minus"){
+      const opTok = peek(); p++;
+      const right = parseFactor();
+      if(!right.ok) return right;
+      left = { ok:true, node:{type:"Bin", op:opTok.value, left:left.node, right:right.node} };
+    }
+    return left;
+  }
+
+  function parseFactor(){
+    const t = peek();
+    if(t.type==="num"){ p++; return { ok:true, node:{type:"Num", value:Number(t.value)} }; }
+    if(t.type==="id"){ p++; return { ok:true, node:{type:"Var", name:t.value} }; }
+    if(t.type==="lpar"){
+      p++;
+      const ex = parseExpr(); if(!ex.ok) return ex;
+      const r = eat("rpar",")"); if(!r.ok) return r;
+      return ex;
+    }
+    return { ok:false, error: CompileError(`Parse error: expected num/id/'(' at ${t.line}:${t.col}`) };
+  }
+
+  return parseProgram();
+}
+
+// Semantic checks: literals range, defined vars, redecl, has return
+function sema(ast){
+  const body = ast.fn.body;
+  const defined = new Set();
+  let hasReturn = false;
+
+  function checkExpr(e){
+    if(e.type==="Num"){
+      if(e.value < 0 || e.value > 255) return { ok:false, error: CompileError(`Semantic error: literal ${e.value} outside u8 range (0..255).`) };
+      return { ok:true };
+    }
+    if(e.type==="Var"){
+      if(!defined.has(e.name)) return { ok:false, error: CompileError(`Semantic error: variable '${e.name}' used before declaration.`) };
+      return { ok:true };
+    }
+    if(e.type==="Bin"){
+      let r = checkExpr(e.left); if(!r.ok) return r;
+      r = checkExpr(e.right); if(!r.ok) return r;
+      return { ok:true };
+    }
+    return { ok:false, error: CompileError(`Semantic error: unknown expr node '${e.type}'.`) };
+  }
+
+  for(const st of body){
+    if(st.type==="Let"){
+      if(defined.has(st.name)) return { ok:false, error: CompileError(`Semantic error: variable '${st.name}' redeclared.`) };
+      const r = checkExpr(st.expr);
+      if(!r.ok) return r;
+      defined.add(st.name);
+    } else if(st.type==="Return"){
+      const r = checkExpr(st.expr);
+      if(!r.ok) return r;
+      hasReturn = true;
+    } else {
+      return { ok:false, error: CompileError(`Semantic error: unknown stmt '${st.type}'.`) };
+    }
+  }
+
+  if(!hasReturn) return { ok:false, error: CompileError("Semantic error: function main must contain at least one return.") };
+  return { ok:true, symbols:[...defined] };
+}
+
+// Lower to IR (inspired by your Rust prototype ops)
+function lowerToIR(ast){
+  let temp = 0;
+  let local = 0;
+  const locals = new Map(); // name -> localId
+  const ir = [];
+
+  function newTemp(){ return {kind:"Temp", id: temp++}; }
+  function ensureLocal(name){
+    if(locals.has(name)) return locals.get(name);
+    const id = {kind:"Local", id: local++};
+    locals.set(name, id);
+    return id;
+  }
+
+  function emit(op){ ir.push(op); }
+
+  function lowerExpr(e){
+    if(e.type==="Num"){
+      const dst = newTemp();
+      emit({op:"ConstU8", dst, value:e.value});
+      return dst;
+    }
+    if(e.type==="Var"){
+      const dst = newTemp();
+      const loc = ensureLocal(e.name);
+      emit({op:"LoadLocal", dst, local:loc});
+      return dst;
+    }
+    if(e.type==="Bin"){
+      const lhs = lowerExpr(e.left);
+      const rhs = lowerExpr(e.right);
+      const dst = newTemp();
+      emit({op: e.op==="+" ? "AddU8" : "SubU8", dst, lhs, rhs});
+      return dst;
+    }
+    throw new Error("unknown expr");
+  }
+
+  for(const st of ast.fn.body){
+    if(st.type==="Let"){
+      const loc = ensureLocal(st.name);
+      const src = lowerExpr(st.expr);
+      emit({op:"StoreLocal", local:loc, src});
+    } else if(st.type==="Return"){
+      const v = lowerExpr(st.expr);
+      emit({op:"Ret", value:v});
+    }
+  }
+
+  return { ok:true, ir, counts:{ locals: local, temps: temp } };
+}
+
+// HC11 asm generation (subset like your prototype)
+function codegenHC11(ir, cfg){
+  // cfg: org, stack, halt
+  const org = cfg.org;
+  const stack = cfg.stack;
+  const halt = cfg.halt;
+
+  // Layout: locals first then temps, both stack slots, indexed by X (TSX).
+  // Reserve total_stack = locals + temps bytes.
+  // We'll map LocalId and TempId to offsets in [0..255].
+  const localsCount = cfg.locals;
+  const tempsCount = cfg.temps;
+  const total = localsCount + tempsCount;
+
+  function offLocal(id){ return id.id & 0xFF; }
+  function offTemp(id){ return (localsCount + id.id) & 0xFF; }
+
+  const asm = [];
+  const emit = (s)=>asm.push(s);
+
+  emit(`\tORG $${hex16(org)}`);
+  emit(`start:`);
+  emit(`\tLDS #$${hex16(stack)}`);
+  emit(`\tJSR main`);
+  emit(`halt:`);
+  emit(halt==="swi" ? `\tSWI` : `\tRTS`);
+  emit(`main:`);
+
+  // Prologue: reserve stack bytes
+  for(let i=0;i<total;i++) emit(`\tDES`);
+  if(total>0) emit(`\tTSX`);
+
+  // Simple codegen: use A as work reg, store all temps/locals in frame.
+  for(const ins of ir){
+    switch(ins.op){
+      case "ConstU8":
+        emit(`\tLDAA #$${hex8(ins.value)}`);
+        if(total>0){
+          emit(`\tSTAA $${hex8(offTemp(ins.dst))},X`);
+        }
+        break;
+      case "LoadLocal":
+        emit(`\tLDAA $${hex8(offLocal(ins.local))},X`);
+        emit(`\tSTAA $${hex8(offTemp(ins.dst))},X`);
+        break;
+      case "StoreLocal":
+        emit(`\tLDAA $${hex8(offTemp(ins.src))},X`);
+        emit(`\tSTAA $${hex8(offLocal(ins.local))},X`);
+        break;
+      case "AddU8":
+        emit(`\tLDAA $${hex8(offTemp(ins.lhs))},X`);
+        emit(`\tADDA $${hex8(offTemp(ins.rhs))},X`);
+        emit(`\tSTAA $${hex8(offTemp(ins.dst))},X`);
+        break;
+      case "SubU8":
+        emit(`\tLDAA $${hex8(offTemp(ins.lhs))},X`);
+        emit(`\tSUBA $${hex8(offTemp(ins.rhs))},X`);
+        emit(`\tSTAA $${hex8(offTemp(ins.dst))},X`);
+        break;
+      case "Ret":
+        // load return value into A
+        if(total>0) emit(`\tLDAA $${hex8(offTemp(ins.value))},X`);
+        // Epilogue: free stack
+        for(let i=0;i<total;i++) emit(`\tINS`);
+        emit(`\tRTS`);
+        break;
+      default:
+        return { ok:false, error: CompileError(`HC11 codegen: unknown IR op '${ins.op}'.`) };
+    }
+  }
+
+  emit(`\tEND`);
+  return { ok:true, asm };
+}
+
+// Byte preview: encode subset of mnemonics (matches your Rust subset)
+const OPC = {
+  "LDAA_IMM": 0x86,
+  "LDAA_IDX": 0xA6,
+  "STAA_IDX": 0xA7,
+  "ADDA_IDX": 0xAB,
+  "SUBA_IDX": 0xA0,
+  "LDS_IMM16": 0x8E,
+  "JSR": 0xBD,
+  "RTS": 0x39,
+  "SWI": 0x3F,
+  "DES": 0x34,
+  "INS": 0x31,
+  "TSX": 0x30,
+};
+
+function emitBytesPreview(asmLines){
+  // Very small encoder: handles lines we generate.
+  // Labels + directives ignored. Only the subset above.
+  const bytes = [];
+  const labels = new Map();
+  let pc = null;
+  let org = null;
+
+  // pass 1: label addresses + pc
+  for(const line of asmLines){
+    const s = line.trim();
+    if(!s) continue;
+    if(s.startsWith("ORG")){
+      const addr = parseHex(s.split("$")[1]);
+      org = addr; pc = addr;
+      continue;
+    }
+    if(s.endsWith(":")){
+      const name = s.slice(0,-1);
+      labels.set(name, pc);
+      continue;
+    }
+    if(s === "END") continue;
+    if(pc === null) continue;
+    pc += instrSize(s, labels);
+  }
+
+  // pass 2: encode
+  pc = org;
+  for(const line of asmLines){
+    const raw = line.trim();
+    if(!raw) continue;
+    if(raw.startsWith("ORG")){
+      pc = parseHex(raw.split("$")[1]); // reset
+      continue;
+    }
+    if(raw.endsWith(":") || raw === "END") continue;
+    const enc = encodeLine(raw, pc, labels);
+    if(enc.error) return { ok:false, error: enc.error };
+    bytes.push(...enc.bytes);
+    pc += enc.bytes.length;
+  }
+
+  return { ok:true, bytes, origin: org ?? 0 };
+}
+
+function instrSize(line){
+  const s = line.trim();
+  if(s==="RTS"||s==="SWI"||s==="DES"||s==="INS"||s==="TSX") return 1;
+  if(s.startsWith("LDS #$")) return 3;
+  if(s.startsWith("JSR ")) return 3;
+  if(s.startsWith("LDAA #$")) return 2;
+  if(s.startsWith("LDAA $") && s.includes(",X")) return 2;
+  if(s.startsWith("STAA $") && s.includes(",X")) return 2;
+  if(s.startsWith("ADDA $") && s.includes(",X")) return 2;
+  if(s.startsWith("SUBA $") && s.includes(",X")) return 2;
+  // unknown: be strict
+  throw new Error("unknown size for: " + s);
+}
+
+function encodeLine(line, pc, labels){
+  const s = line.trim();
+  const out = [];
+
+  try{
+    if(s==="RTS"){ out.push(OPC.RTS); return {bytes:out}; }
+    if(s==="SWI"){ out.push(OPC.SWI); return {bytes:out}; }
+    if(s==="DES"){ out.push(OPC.DES); return {bytes:out}; }
+    if(s==="INS"){ out.push(OPC.INS); return {bytes:out}; }
+    if(s==="TSX"){ out.push(OPC.TSX); return {bytes:out}; }
+
+    if(s.startsWith("LDS #$")){
+      const v = parseHex(s.split("#$")[1]);
+      out.push(OPC.LDS_IMM16, (v>>8)&0xFF, v&0xFF);
+      return {bytes:out};
+    }
+
+    if(s.startsWith("JSR ")){
+      const name = s.split(/\s+/)[1];
+      const addr = labels.has(name) ? labels.get(name) : parseHex(name.replace("$",""));
+      out.push(OPC.JSR, (addr>>8)&0xFF, addr&0xFF);
+      return {bytes:out};
+    }
+
+    if(s.startsWith("LDAA #$")){
+      const v = parseHex(s.split("#$")[1]) & 0xFF;
+      out.push(OPC.LDAA_IMM, v);
+      return {bytes:out};
+    }
+
+    // Indexed forms: $xx,X
+    const idxMatch = (mn, opc) => {
+      // mn is like "STAA" and line like "STAA $0A,X"
+      if(!s.startsWith(mn + " $")) return null;
+      if(!s.includes(",X")) return null;
+      const part = s.split("$")[1].split(",")[0];
+      const off = parseHex(part) & 0xFF;
+      return [opc, off];
+    };
+
+    let b = idxMatch("LDAA", OPC.LDAA_IDX); if(b){ out.push(...b); return {bytes:out}; }
+    b = idxMatch("STAA", OPC.STAA_IDX); if(b){ out.push(...b); return {bytes:out}; }
+    b = idxMatch("ADDA", OPC.ADDA_IDX); if(b){ out.push(...b); return {bytes:out}; }
+    b = idxMatch("SUBA", OPC.SUBA_IDX); if(b){ out.push(...b); return {bytes:out}; }
+
+    return { error: CompileError("Byte preview: unsupported asm line: " + s) };
+  }catch(e){
+    return { error: CompileError("Byte preview error: " + (e?.message || String(e))) };
+  }
+}
+
+// ---------- Formatting ----------
+function fmtTokens(tokens){
+  return tokens.map(t => `${t.type.padEnd(7)} ${String(t.value).padEnd(8)} @${t.line}:${t.col}`).join("\n");
+}
+function fmtAST(ast){ return JSON.stringify(ast, null, 2); }
+function fmtIR(ir){
+  return ir.map((x,i)=>{
+    const id = String(i).padStart(2,"0");
+    switch(x.op){
+      case "ConstU8": return `${id}: ${fmtTemp(x.dst)} = const_u8 ${x.value}`;
+      case "LoadLocal": return `${id}: ${fmtTemp(x.dst)} = load_local ${fmtLocal(x.local)}`;
+      case "StoreLocal": return `${id}: store_local ${fmtLocal(x.local)}, ${fmtTemp(x.src)}`;
+      case "AddU8": return `${id}: ${fmtTemp(x.dst)} = add_u8 ${fmtTemp(x.lhs)}, ${fmtTemp(x.rhs)}`;
+      case "SubU8": return `${id}: ${fmtTemp(x.dst)} = sub_u8 ${fmtTemp(x.lhs)}, ${fmtTemp(x.rhs)}`;
+      case "Ret": return `${id}: ret ${fmtTemp(x.value)}`;
+      default: return `${id}: ${x.op}`;
+    }
+  }).join("\n");
+}
+function fmtTemp(t){ return `%t${t.id}`; }
+function fmtLocal(l){ return `%l${l.id}`; }
+function fmtASM(lines){ return lines.join("\n"); }
+function fmtBytes(bytes){
+  let out = "";
+  for(let i=0;i<bytes.length;i++){
+    if(i%16===0) out += (i===0?"":"\n") + String(i).padStart(4,"0") + "  ";
+    out += bytes[i].toString(16).padStart(2,"0") + " ";
+  }
+  return out.trimEnd();
+}
+function hex8(n){ return (n & 0xFF).toString(16).toUpperCase().padStart(2,"0"); }
+function hex16(n){ return (n & 0xFFFF).toString(16).toUpperCase().padStart(4,"0"); }
+function parseHex(s){
+  const t = s.trim().replace(/^0x/i,"").replace(/^\$/,"");
+  return parseInt(t, 16);
+}
+
+// ---------- Pipeline runner ----------
+const state = {
+  stageIndex: 0,
+  playing: false,
+  flow: 0,
+  status: "active",
+  cfg: { org: 0x0100, stack: 0x01FF, halt:"rts" },
+  artifacts: {
+    source: "",
+    tokens: null,
+    ast: null,
+    sema: null,
+    ir: null,
+    asm: null,
+    bytes: null,
+  }
+};
+
+function renderPipeline(){
+  dom.pipeline.innerHTML = "";
+  for(let i=0;i<STAGES.length;i++){
+    const s = STAGES[i];
+    const el = document.createElement("div");
+    el.className = "stage" +
+      (i === state.stageIndex ? " active" : "") +
+      (i < state.stageIndex ? " done" : "");
+    el.innerHTML = `<div class="name">${s.name}</div><div class="desc">${s.desc}</div>`;
+    dom.pipeline.appendChild(el);
+    if(i < STAGES.length-1){
+      const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+      svg.setAttribute("class","arrow");
+      svg.setAttribute("viewBox","0 0 24 24");
+      svg.innerHTML = `<path fill="rgba(255,255,255,.65)" d="M13 5l7 7-7 7v-4H4v-6h9V5z"/>`;
+      dom.pipeline.appendChild(svg);
+    }
+  }
+}
+
+function renderStageArtifact(){
+  const i = state.stageIndex;
+  if(i===0) setArtifact("Source Program","SOURCE", state.artifacts.source);
+  else if(i===1) setArtifact("Token Stream","TOKENS", fmtTokens(state.artifacts.tokens||[]));
+  else if(i===2) setArtifact("Abstract Syntax Tree (AST)","AST", fmtAST(state.artifacts.ast||{}));
+  else if(i===3) setArtifact("Semantic Result","SEMA", JSON.stringify(state.artifacts.sema||{}, null, 2));
+  else if(i===4) setArtifact("Intermediate Representation (IR)","IR", fmtIR(state.artifacts.ir||[]));
+  else if(i===5) setArtifact("HC11 Assembly (subset)","ASM", fmtASM(state.artifacts.asm||[]));
+  else if(i===6) setArtifact("Byte Preview (subset encoder)","BYTES", fmtBytes(state.artifacts.bytes||[]));
+}
+
+function resetAll(){
+  state.stageIndex = 0;
+  state.playing = false;
+  state.flow = 0;
+  state.status = "active";
+  state.artifacts = { source: dom.src.value, tokens:null, ast:null, sema:null, ir:null, asm:null, bytes:null };
+  dom.btnPlay.textContent = "Play";
+  setDiag([{sev:"info", msg:"Ready. Step o Play para ejecutar el pipeline."}]);
+  renderStageArtifact();
+  renderPipeline();
+}
+
+function stepOnce(){
+  if(state.stageIndex >= STAGES.length-1){
+    setDiag([{sev:"info", msg:"Pipeline completo."}]);
+    state.status = "ok";
+    return;
+  }
+  // stage 0 always reads current editor
+  if(state.stageIndex === 0){
+    state.artifacts.source = dom.src.value;
+  }
+  advanceStage();
+}
+
+function advanceStage(){
+  const next = state.stageIndex + 1;
+  const diags = [];
+
+  try{
+    if(next === 1){
+      const r = lex(state.artifacts.source);
+      if(!r.ok) throw r.error;
+      state.artifacts.tokens = r.tokens;
+      diags.push({sev:"info", msg:`Lexing: ${r.tokens.length} tokens (incluye EOF).`});
+    }
+
+    if(next === 2){
+      const r = parse(state.artifacts.tokens);
+      if(!r.ok) throw r.error;
+      state.artifacts.ast = r.ast;
+      diags.push({sev:"info", msg:`Parsing: AST construido para main().`});
+    }
+
+    if(next === 3){
+      const r = sema(state.artifacts.ast);
+      if(!r.ok) throw r.error;
+      state.artifacts.sema = { ok:true, symbols:r.symbols };
+      diags.push({sev:"info", msg:`Sema: OK. Símbolos: ${r.symbols.length ? r.symbols.join(", ") : "(ninguno)"}.`});
+    }
+
+    if(next === 4){
+      const r = lowerToIR(state.artifacts.ast);
+      if(!r.ok) throw r.error;
+      state.artifacts.ir = r.ir;
+      state.cfg.locals = r.counts.locals;
+      state.cfg.temps = r.counts.temps;
+      diags.push({sev:"info", msg:`IR: ${r.ir.length} instrs (locals=${r.counts.locals}, temps=${r.counts.temps}).`});
+    }
+
+    if(next === 5){
+      const r = codegenHC11(state.artifacts.ir, {
+        org: state.cfg.org,
+        stack: state.cfg.stack,
+        halt: state.cfg.halt,
+        locals: state.cfg.locals,
+        temps: state.cfg.temps
+      });
+      if(!r.ok) throw r.error;
+      state.artifacts.asm = r.asm;
+      diags.push({sev:"info", msg:`HC11 asm: emitido (subset).`});
+    }
+
+    if(next === 6){
+      const r = emitBytesPreview(state.artifacts.asm);
+      if(!r.ok) throw r.error;
+      state.artifacts.bytes = r.bytes;
+      diags.push({sev:"info", msg:`Bytes preview: ${r.bytes.length} bytes, origin=$${hex16(r.origin)}.`});
+    }
+
+    state.stageIndex = next;
+    state.status = "ok";
+    setDiag(diags.length ? diags : [{sev:"info", msg:"Advanced."}]);
+    renderStageArtifact();
+    renderPipeline();
+    animateFlowTo(state.stageIndex / (STAGES.length-1), state.status);
+  }catch(err){
+    const msg = err?.message || String(err);
+    setDiag([{sev:"error", msg}]);
+    state.status = "error";
+    animateFlowTo(state.stageIndex / (STAGES.length-1), "error");
+  }
+}
+
+let flowAnim = null;
+function animateFlowTo(target, status){
+  if(flowAnim) cancelAnimationFrame(flowAnim);
+  const start = state.flow;
+  const dur = 240;
+  const tStart = performance.now();
+
+  function tick(){
+    const t = performance.now() - tStart;
+    const u = Math.min(1, t/dur);
+    const e = 1 - Math.pow(1-u, 3);
+    state.flow = start + (target-start)*e;
+    state.status = status === "error" ? "error" : "ok";
+    draw({ flow: state.flow, stageIndex: state.stageIndex, status: state.status });
+    if(u < 1) flowAnim = requestAnimationFrame(tick);
+    else flowAnim = null;
+  }
+  flowAnim = requestAnimationFrame(tick);
+}
+
+function loop(){
+  if(!flowAnim){
+    draw({ flow: state.flow, stageIndex: state.stageIndex, status: state.status === "error" ? "error" : (state.stageIndex===0 ? "active" : "ok") });
+  }
+  requestAnimationFrame(loop);
+}
+loop();
+
+// ---------- Controls ----------
+dom.btnPlay.addEventListener("click", ()=>{
+  state.playing = !state.playing;
+  dom.btnPlay.textContent = state.playing ? "Pause" : "Play";
+  if(state.playing) playLoop();
+});
+dom.btnStep.addEventListener("click", ()=>{
+  state.playing = false;
+  dom.btnPlay.textContent = "Play";
+  stepOnce();
+});
+dom.btnReset.addEventListener("click", resetAll);
+dom.btnInjectErr.addEventListener("click", ()=>{
+  dom.src.value = `fn main() -> u8 {
+  let x: u8 = 300;   // fuera de rango
+  return x;
+}`;
+  resetAll();
+  setDiag([{sev:"warn", msg:"Injected error: literal 300 fuera de rango. Observa en qué fase se detecta."}]);
+  // switch to editor tab
+  document.querySelector('[data-tab="tab-editor"]').click();
+});
+
+async function playLoop(){
+  while(state.playing){
+    if(state.stageIndex >= STAGES.length-1){
+      state.playing = false;
+      dom.btnPlay.textContent = "Play";
+      setDiag([{sev:"info", msg:"Pipeline completo."}]);
+      break;
+    }
+    stepOnce();
+    if(state.status === "error"){
+      state.playing = false;
+      dom.btnPlay.textContent = "Play";
+      break;
+    }
+    await sleep(520);
+  }
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ---------- Init ----------
+dom.src.value =
+`fn main() -> u8 {
+  let x: u8 = 40;
+  let y: u8 = 2;
+  return x + y;
+}`;
+
+resetAll();
+renderPipeline();
+renderStageArtifact();
+</script>
+</body>
+</html>

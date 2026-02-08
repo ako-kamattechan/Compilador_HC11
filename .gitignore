@@ -1,0 +1,72 @@
+# =========================================================
+# Compilador_HC11 — .gitignore
+# =========================================================
+
+# --- Python bytecode / caches ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Build / packaging ---
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+.wheels/
+MANIFEST
+
+# --- Virtualenvs ---
+.venv/
+venv/
+ENV/
+env/
+
+# --- Test / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.coverage.xml
+pytestdebug.log
+
+# --- Type checkers / linters ---
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+
+# --- IDEs / editors ---
+.vscode/
+.idea/
+*.iml
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Logs / local run artifacts ---
+*.log
+# Si quieres conservar logs de ejemplo en docs/ o tools/, descomenta lo siguiente:
+# !docs/**/*.log
+# !tools/**/*.log
+
+# dumps / artefactos de compilación local
+*.asm
+*.lst
+*.map
+*.s19
+*.hex
+*.bin
+
+# si luego agregan el monitor y exporta traces localmente
+trace*.json
+trace*.ndjson
+
+# --- Node tooling ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

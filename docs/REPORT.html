@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reporte técnico — Compilador HC11 (estado actual)</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#0f1621; --panel2:#0c121b;
+      --grid:#1a2635; --text:#e7eef7; --muted:#9bb0c7;
+      --accent:#6aa6ff; --ok:#7ad69a; --warn:#ffcf5a; --bad:#ff6a6a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background: radial-gradient(900px 480px at 18% 8%, rgba(106,166,255,.14), transparent 60%),
+                  radial-gradient(900px 520px at 82% 24%, rgba(122,214,154,.10), transparent 62%),
+                  linear-gradient(180deg,#070a0f 0%, #0b0f14 100%);
+      color:var(--text);
+      font-family:var(--sans);
+    }
+    a{color:var(--accent); text-decoration:none}
+    a:hover{text-decoration:underline}
+    header{
+      position:sticky; top:0; z-index:30;
+      background: rgba(11,15,20,.78);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(26,38,53,.85);
+    }
+    .wrap{max-width:1200px; margin:0 auto; padding:18px 16px;}
+    .top{
+      display:flex; gap:12px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;
+    }
+    h1{margin:0; font-size:18px; letter-spacing:.2px}
+    .sub{margin-top:6px; color:var(--muted); font-size:13px; line-height:1.35; max-width: 920px;}
+    .pillrow{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px;
+      border:1px solid rgba(26,38,53,.8);
+      background: rgba(15,22,33,.55);
+      color: var(--muted);
+      font-size:12px;
+    }
+    .dot{width:9px; height:9px; border-radius:999px; background:rgba(155,176,199,.6)}
+    .dot.ok{background:var(--ok)}
+    .dot.warn{background:var(--warn)}
+    .dot.bad{background:var(--bad)}
+
+    .controls{
+      display:grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap:10px;
+      align-items:center;
+      margin-top:14px;
+    }
+    .search, .select, button{
+      border:1px solid rgba(26,38,53,.95);
+      background: rgba(15,22,33,.78);
+      color: var(--text);
+      border-radius: 12px;
+      padding:10px 12px;
+      outline:none;
+      font-size:14px;
+      box-shadow: 0 0 0 rgba(0,0,0,0);
+      transition: border-color .15s ease, transform .05s ease, background .15s ease;
+    }
+    .search::placeholder{color: rgba(155,176,199,.62)}
+    .search:focus, .select:focus, button:focus{border-color: rgba(106,166,255,.85)}
+    button{cursor:pointer; user-select:none}
+    button:hover{background: rgba(15,22,33,.9)}
+    button:active{transform: translateY(1px)}
+    button.ghost{background: transparent}
+    button.primary{
+      border-color: rgba(122,214,154,.35);
+      background: rgba(122,214,154,.10);
+    }
+
+    main .wrap{padding-top:14px; padding-bottom:40px;}
+    .layout{
+      display:grid;
+      grid-template-columns: 320px 1fr;
+      gap:14px;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .layout{grid-template-columns:1fr}
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(15,22,33,.92), rgba(12,18,27,.92));
+      border:1px solid rgba(26,38,53,.95);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card > header{
+      position:static;
+      background: transparent;
+      backdrop-filter: none;
+      border-bottom:1px solid rgba(26,38,53,.65);
+      padding:14px 14px 12px 14px;
+    }
+    .card h2{margin:0; font-size:15px;}
+    .meta{margin-top:6px; color:var(--muted); font-size:12px; line-height:1.35;}
+    .body{padding:12px 14px 14px 14px;}
+    .section{
+      border-top:1px solid rgba(26,38,53,.55);
+    }
+
+    /* TOC */
+    .toc a{display:block; padding:8px 10px; border-radius:12px; color:var(--text);}
+    .toc a:hover{background: rgba(11,15,20,.45); text-decoration:none}
+    .toc .small{color: var(--muted); font-size:12px; margin-top:8px; line-height:1.35}
+    .kbd{font-family: var(--mono); font-size:12px; color: rgba(231,238,247,.82)}
+    .tag{
+      display:inline-block;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(26,38,53,.85);
+      background: rgba(11,15,20,.40);
+      color: rgba(155,176,199,.95);
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* blocks */
+    .block{
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(26,38,53,.75);
+      background: rgba(11,15,20,.38);
+      margin:10px 0;
+    }
+    .block .title{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-bottom:8px;
+    }
+    .block .title strong{font-size:13px}
+    .block .title .right{display:flex; gap:8px; align-items:center}
+    .btnmini{
+      font-size:12px; padding:7px 10px; border-radius:10px;
+      border:1px solid rgba(26,38,53,.9);
+      background: rgba(15,22,33,.7);
+      color: var(--text);
+      cursor:pointer;
+    }
+    .btnmini:hover{background: rgba(15,22,33,.9)}
+    .hint{color:var(--muted); font-size:12px; line-height:1.35}
+    pre{
+      margin:0;
+      padding:10px 10px;
+      border-radius: 12px;
+      border:1px solid rgba(26,38,53,.8);
+      background: rgba(0,0,0,.22);
+      overflow:auto;
+      font-family: var(--mono);
+      font-size: 12.2px;
+      line-height:1.35;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+    ul{margin:8px 0 0 18px; padding:0}
+    li{margin:6px 0}
+    .callout{
+      border-left: 3px solid rgba(106,166,255,.65);
+      padding:10px 12px;
+      background: rgba(106,166,255,.08);
+      border-radius: 12px;
+      color: rgba(231,238,247,.95);
+      margin: 10px 0;
+    }
+    .callout.warn{border-left-color: rgba(255,207,90,.8); background: rgba(255,207,90,.08)}
+    .callout.bad{border-left-color: rgba(255,106,106,.8); background: rgba(255,106,106,.08)}
+    .muted{color: var(--muted)}
+    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
+    @media (max-width: 980px){ .grid2{grid-template-columns:1fr} }
+    .hr{height:1px; background: rgba(26,38,53,.65); margin:12px 0;}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>Reporte técnico — Compilador HC11 (estado actual)</h1>
+        <div class="sub">
+          Documento para compartir con el equipo: contratos, módulos, pipeline, pruebas, riesgos y próximos pasos.
+          Incluye notas sobre el visualizador/monitor como posible extensión (sin comprometer integración inmediata).
+        </div>
+
+        <div class="pillrow">
+          <div class="pill"><span class="dot ok"></span><span>Frontend (lexer/parser/AST) implementado</span></div>
+          <div class="pill"><span class="dot warn"></span><span>IR + Backend (isel) en stubs</span></div>
+          <div class="pill"><span class="dot ok"></span><span>ABI/prolog+emit ASM listos</span></div>
+          <div class="pill"><span class="dot warn"></span><span>Integración: smoke mínimo</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <input id="search" class="search" placeholder="Buscar (ej. lexer, TokenKind, driver, pytest, import circular, ABI, IR)..." />
+      <select id="scope" class="select" title="Filtrar por sección">
+        <option value="all">Todas las secciones</option>
+        <option value="resumen">Resumen</option>
+        <option value="frontend">Frontend</option>
+        <option value="driver">Driver & Config</option>
+        <option value="errores">Errores</option>
+        <option value="tests">Tests</option>
+        <option value="riesgos">Warnings & Riesgos</option>
+        <option value="comandos">Comandos</option>
+        <option value="visualizador">Visualizador (opcional)</option>
+      </select>
+      <button id="collapseAll" type="button" class="ghost" title="Colapsar/expandir">Colapsar</button>
+      <button id="copyAll" type="button" class="primary" title="Copiar reporte (texto)">Copiar</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="layout">
+      <!-- TOC -->
+      <aside class="card toc" id="tocCard">
+        <header>
+          <h2>Índice</h2>
+          <div class="meta">Navegación rápida por áreas.</div>
+        </header>
+        <div class="body" id="toc"></div>
+      </aside>
+
+      <!-- CONTENT -->
+      <section id="content"></section>
+    </div>
+  </div>
+</main>
+
+<script>
+  const SECTIONS = [
+    {
+      id: "resumen",
+      title: "Resumen ejecutivo",
+      tag: "contexto",
+      blocks: [
+        {
+          title: "Contexto",
+          type: "callout",
+          text: [
+            "Se está considerando añadir un visualizador/monitor didáctico al compilador real como componente opcional.",
+            "Por ahora el foco es mantener alineado al equipo: contratos claros entre módulos y documentación para continuar el pipeline."
+          ]
+        },
+        {
+          title: "Estado actual del pipeline",
+          type: "list",
+          items: [
+            "Frontend: Lexer + Parser + AST nodes (implementado).",
+            "Sema: stub (pendiente reglas).",
+            "IR: stub (pendiente contrato real + builder + emit).",
+            "Backend: ABI/prolog+emit ASM listos; selección (isel) stub.",
+            "Tests: smoke por fase + unitarios para lexer/parser."
+          ]
+        },
+        {
+          title: "Arquitectura (visión global)",
+          type: "pre",
+          lang: "text",
+          content:
+`frontend: source -> tokens -> AST
+sema:    valida AST (pendiente)
+ir:      AST -> IR (pendiente)
+backend: IR -> asm  (ABI listo; isel pendiente)
+
+driver: conecta todo: lex -> parse -> validar -> build -> seleccionar -> envolver_programa -> emit_asm`
+        }
+      ]
+    },
+
+    {
+      id: "frontend",
+      title: "Frontend (API pública, tokens, lexer, AST, parser, sema)",
+      tag: "módulos",
+      blocks: [
+        {
+          title: "API pública del frontend",
+          type: "callout",
+          text: [
+            "La interfaz a usar por otros módulos está en: src/hc11cc/frontend/__init__.py",
+            "Re-exporta tipos y funciones para que el resto del proyecto no dependa de imports internos frágiles."
+          ]
+        },
+        {
+          title: "Contrato: src/hc11cc/frontend/__init__.py",
+          type: "list",
+          items: [
+            "Tipos re-exportados: Token, TokenKind, Span.",
+            "Funciones re-exportadas: lex(source), parse(tokens).",
+            "Helper: parse_source(source) -> Program.",
+            "Nodos AST re-exportados: Program, Function, Let, Return, Expr, IntLit, Var, BinOp, BinOpKind, Type, U8."
+          ]
+        },
+
+        {
+          title: "tokens.py (Span, TokenKind, Token)",
+          type: "list",
+          items: [
+            "Span(start,end,line,col): offsets start/end 0-index; line/col 1-index; __repr__ = Span(line:col).",
+            "TokenKind: keywords (FN, MAIN, LET, RETURN, U8), símbolos (parens/braces/;/:/=/+/-, ARROW), literales (IDENT, INT_LIT) y EOF.",
+            "Token(kind, lexeme, span, value=None): value usado para INT_LIT."
+          ]
+        },
+
+        {
+          title: "lexer.py (texto -> list[Token])",
+          type: "list",
+          items: [
+            "Whitespace: ignora espacios/tabs/CR; maneja \\n para actualizar (line,col).",
+            "Keywords: fn, main, let, return, u8.",
+            "Símbolos: ( ) { } ; : = + -",
+            "ARROW: reconoce '->' como token único.",
+            "IDENT: [a-zA-Z_][a-zA-Z0-9_]*",
+            "INT_LIT: decimal; TokenKind.INT_LIT con value=int(lexeme).",
+            "EOF: agrega TokenKind.EOF al final."
+          ]
+        },
+
+        {
+          title: "ast_nodes.py (AST con dataclasses)",
+          type: "list",
+          items: [
+            "Type(name) y constante U8 = Type('u8').",
+            "Expr: IntLit(val), Var(name), BinOp(op,lhs,rhs) con BinOpKind {ADD,SUB}.",
+            "Stmt: Let(name, ty, init), Return(expr).",
+            "Function(name, ret_ty, body: List[Stmt]).",
+            "Program(functions: List[Function])."
+          ]
+        },
+
+        {
+          title: "parser.py (gramática y comportamiento)",
+          type: "pre",
+          lang: "text",
+          content:
+`Gramática v0 (según implementación):
+- Program: 0+ funciones hasta EOF
+- Function:
+  - 'fn' (name = keyword 'main' o IDENT)
+  - '()' sin parámetros
+  - '-> u8' obligatorio
+  - '{' stmt* '}'
+- Stmt: let | return
+  - let: 'let' IDENT ':' 'u8' '=' expr ';'
+  - return: 'return' expr ';'
+- Expr: factor (('+'|'-') factor)*  (izq-asociativo)
+- Factor: INT_LIT | IDENT | '(' expr ')'
+
+Errores:
+- ErrorFrontend("Expected X got Y", span)
+- ErrorFrontend("Unexpected token ...", span)
+
+Nota:
+- El parser permite múltiples funciones (while hasta EOF).`
+        },
+
+        {
+          title: "sema.py (estado actual)",
+          type: "callout",
+          variant: "warn",
+          text: [
+            "Actualmente validar(ast: Program) es un stub y no aplica reglas todavía.",
+            "Pendiente: implementar reglas (rango u8, uso antes de declarar, redeclaración, al menos un return, etc.)."
+          ]
+        },
+
+        {
+          title: "Refinamientos recomendados (frontend)",
+          type: "list",
+          items: [
+            "Decidir si el lenguaje v0 acepta múltiples funciones o solo main; hoy el parser acepta múltiples (contrato debe reflejarlo).",
+            "En lexer, considerar soporte de comentarios (// ...) para evitar que ejemplos con comentarios rompan.",
+            "En TokenKind: opcionalmente separar MAIN como keyword o tratarlo como IDENT y validar en sema (menos casos especiales).",
+            "En errores: estandarizar mensajes (EN/ES) y formato, para que tests y UI/monitor sean consistentes."
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "driver",
+      title: "Driver, Config, imports del paquete",
+      tag: "pipeline",
+      blocks: [
+        {
+          title: "src/hc11cc/driver.py (punto de entrada)",
+          type: "pre",
+          lang: "text",
+          content:
+`compilar(codigo_fuente: str, cfg: Config | None = None) -> str
+
+Pipeline actual:
+  lex(source) -> tokens
+  parse(tokens) -> AST (Program)
+  validar(AST) -> (stub)
+  build(AST) -> IR (stub)
+  seleccionar(IR) -> instrs HC11 (stub)
+  envolver_programa(instrs, cfg) -> AsmProgram (real)
+  emit_asm(AsmProgram) -> str asm (real)
+
+Comportamiento:
+- Si cfg.emitir_ir == True: retorna IR 'pretty' (por ahora stub).`
+        },
+        {
+          title: "src/hc11cc/config.py (Config dataclass)",
+          type: "list",
+          items: [
+            "emitir_ir: bool (si True, driver.compilar retorna IR pretty).",
+            "debug: bool.",
+            "org: int (default 0x0100).",
+            "stack_init: int (default 0x01FF).",
+            "halt: str ('rts' o 'swi')."
+          ]
+        },
+        {
+          title: "src/hc11cc/__init__.py (imports transitivos)",
+          type: "callout",
+          variant: "warn",
+          text: [
+            "Importar hc11cc ejecuta imports transitivos hasta driver, lo cual importa frontend/ir/backend.",
+            "Esto puede inducir ciclos o side-effects si módulos se importan entre sí.",
+            "Mitigación común: mover imports pesados adentro de funciones, o exponer API sin importar todo el pipeline al cargar el paquete."
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "errores",
+      title: "Errores del compilador",
+      tag: "diagnósticos",
+      blocks: [
+        {
+          title: "src/hc11cc/errores.py (jerarquía)",
+          type: "pre",
+          lang: "text",
+          content:
+`ErrorCompilacion(Exception)
+
+ErrorFrontend(ErrorCompilacion):
+  - message: str
+  - span: Optional[Span]
+  - __str__: imprime "message at Span(...)" si hay span
+
+ErrorIR(ErrorCompilacion)
+ErrorBackend(ErrorCompilacion)
+
+Nota:
+- Hay un 'hack' tipo TYPE_CHECKING (if False) para evitar import circular de Span en runtime.`
+        },
+        {
+          title: "Refinamiento recomendado",
+          type: "list",
+          items: [
+            "Cambiar el hack a: from typing import TYPE_CHECKING; if TYPE_CHECKING: from ... import Span (estándar).",
+            "Agregar un método helper para formatear spans (línea/columna) para UI/monitor.",
+            "Acordar un esquema de severidad (info/warn/error) si se planea el visualizador."
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "tests",
+      title: "Tests (pytest markers, suites y qué validan)",
+      tag: "calidad",
+      blocks: [
+        {
+          title: "Marcadores y comandos",
+          type: "pre",
+          lang: "text",
+          content:
+`Markers (pyproject.toml):
+- frontend
+- ir
+- backend
+- integracion
+
+Comandos:
+pytest -m frontend
+pytest -m ir
+pytest -m backend
+pytest -m integracion`
+        },
+        {
+          title: "conftest.py",
+          type: "list",
+          items: [
+            "Fixture ejemplo_minimo: \"fn main() -> u8 { return 7; }\""
+          ]
+        },
+        {
+          title: "Suites smoke por fase",
+          type: "list",
+          items: [
+            "tests/miembro1_frontend/test_frontend_smoke.py: lex+parse+validar (stub).",
+            "tests/miembro2_ir/test_ir_smoke.py: build(stub) produce objeto con attr 'funciones'.",
+            "tests/miembro3_backend/test_backend_smoke.py: ABI wrapper/emit produce ORG/LDS/JSR main.",
+            "tests/integracion/test_pipeline_smoke.py: compilar(...) contiene \"main:\" (mínimo)."
+          ]
+        },
+        {
+          title: "Unit tests del frontend",
+          type: "list",
+          items: [
+            "tests/test_lexer.py: kinds, value de INT_LIT, spans y error por char inesperado.",
+            "tests/test_parser.py: forma del AST, asociatividad +/-, paréntesis, errores por ; faltante y tipo faltante."
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "riesgos",
+      title: "Warnings / Riesgos / notas importantes",
+      tag: "importante",
+      blocks: [
+        {
+          title: "Stubs y cobertura real",
+          type: "callout",
+          variant: "warn",
+          text: [
+            "frontend/sema.py, ir/* y backend/hc11/isel.py todavía no implementan trabajo real.",
+            "La suite de integración hoy no valida generación asm real; solo verifica que exista 'main:'."
+          ]
+        },
+        {
+          title: "Import side-effects / ciclos",
+          type: "callout",
+          variant: "warn",
+          text: [
+            "Riesgo de import side-effects por hc11cc/__init__.py importando driver al importar el paquete.",
+            "Si aparece un ciclo: mover imports al interior de compilar() o cambiar la API de package init."
+          ]
+        },
+        {
+          title: "Nota sobre error.log vs estado actual",
+          type: "callout",
+          variant: "bad",
+          text: [
+            "En la transcripción aparece un error previo: ImportError por ASTPrograma desde parser.py.",
+            "En el estado actual que pegaste, parser no exporta ASTPrograma (usa Program/Function...), y sema.py importa Program desde ast_nodes, lo cual ya es consistente.",
+            "Si aún ven ese error, probablemente están corriendo una versión vieja del archivo o hay residuos en el entorno (módulo instalado vs src)."
+          ]
+        },
+        {
+          title: "Mitigación recomendada para entornos",
+          type: "list",
+          items: [
+            "Evitar mezclar 'instalado' vs 'src en path'.",
+            "En tests ya se hace sys.path.insert('../src') en unitarios; mantener eso o usar 'pip install -e .' para modo editable.",
+            "Borrar __pycache__ si hay comportamientos extraños, y revisar qué archivo se está importando realmente."
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "comandos",
+      title: "Cómo correr (tests y uso rápido)",
+      tag: "uso",
+      blocks: [
+        {
+          title: "Ejecutar suites",
+          type: "pre",
+          lang: "bash",
+          content:
+`pytest -m frontend
+pytest -m ir
+pytest -m backend
+pytest -m integracion`
+        },
+        {
+          title: "Uso rápido desde Python",
+          type: "pre",
+          lang: "python",
+          content:
+`python -c "from hc11cc import compilar; print(compilar('fn main() -> u8 { return 7; }'))"`
+        }
+      ]
+    },
+
+    {
+      id: "visualizador",
+      title: "Visualizador / Monitor (idea opcional)",
+      tag: "opcional",
+      blocks: [
+        {
+          title: "Intención",
+          type: "callout",
+          text: [
+            "El monitor NO es otro compilador: solo observa artefactos por fase (tokens/AST/IR/ASM/bytes) y diagnósticos.",
+            "Se puede integrar en fases: primero navegación con trace precomputado, luego step real."
+          ]
+        },
+        {
+          title: "Recomendación mínima para no bloquear al equipo",
+          type: "list",
+          items: [
+            "Definir contrato de evento: {stage, ok, artifact{kind,data,text}, diagnostics[]}.",
+            "Mantener UI desacoplada: el compilador emite eventos; la UI solo renderiza.",
+            "Integración gradual: Fase 1 (trace precomputado) antes de Fase 2 (step real)."
+          ]
+        }
+      ]
+    }
+  ];
+
+  // --- DOM helpers ---
+  const elToc = document.getElementById("toc");
+  const elContent = document.getElementById("content");
+  const elSearch = document.getElementById("search");
+  const elScope = document.getElementById("scope");
+  const elCollapseAll = document.getElementById("collapseAll");
+  const elCopyAll = document.getElementById("copyAll");
+
+  let collapsed = false;
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function makeToc(){
+    elToc.innerHTML = "";
+    for(const sec of SECTIONS){
+      const a = document.createElement("a");
+      a.href = "#" + sec.id;
+      a.innerHTML = `${escapeHtml(sec.title)} <span class="tag">${escapeHtml(sec.tag || "")}</span>`;
+      elToc.appendChild(a);
+    }
+    const small = document.createElement("div");
+    small.className = "small";
+    small.innerHTML = `
+      <div class="muted">Tips:</div>
+      <div><span class="kbd">Esc</span> limpia búsqueda</div>
+      <div><span class="kbd">Colapsar</span> oculta/expande bloques</div>
+      <div><span class="kbd">Copiar</span> genera texto del reporte</div>
+    `;
+    elToc.appendChild(small);
+  }
+
+  function matchQuery(sec, q){
+    if(!q) return true;
+    const needle = q.toLowerCase();
+    const blob = JSON.stringify(sec).toLowerCase();
+    return blob.includes(needle);
+  }
+
+  function render(){
+    const q = (elSearch.value || "").trim();
+    const scope = elScope.value;
+
+    elContent.innerHTML = "";
+
+    for(const sec of SECTIONS){
+      if(scope !== "all" && sec.id !== scope) continue;
+      if(!matchQuery(sec, q)) continue;
+
+      const card = document.createElement("article");
+      card.className = "card";
+      card.id = sec.id;
+
+      const head = document.createElement("header");
+      const h2 = document.createElement("h2");
+      h2.textContent = sec.title;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = sec.tag ? `Etiqueta: ${sec.tag}` : "";
+      head.appendChild(h2);
+      head.appendChild(meta);
+
+      const body = document.createElement("div");
+      body.className = "body";
+
+      for(const b of sec.blocks){
+        if(q){
+          const bblob = JSON.stringify(b).toLowerCase();
+          if(!bblob.includes(q.toLowerCase())) continue;
+        }
+
+        const block = document.createElement("div");
+        block.className = "block";
+        block.dataset.block = "1";
+
+        const trow = document.createElement("div");
+        trow.className = "title";
+
+        const left = document.createElement("div");
+        left.innerHTML = `<strong>${escapeHtml(b.title)}</strong>`;
+
+        const right = document.createElement("div");
+        right.className = "right";
+
+        const btn = document.createElement("button");
+        btn.className = "btnmini";
+        btn.type = "button";
+        btn.textContent = "Copiar";
+        btn.addEventListener("click", async () => {
+          const txt = extractBlockText(b);
+          await navigator.clipboard.writeText(txt);
+          btn.textContent = "Copiado ✓";
+          setTimeout(()=>btn.textContent="Copiar", 900);
+        });
+
+        right.appendChild(btn);
+
+        trow.appendChild(left);
+        trow.appendChild(right);
+        block.appendChild(trow);
+
+        const inner = document.createElement("div");
+        inner.className = "inner";
+        inner.style.display = collapsed ? "none" : "block";
+
+        if(b.type === "pre"){
+          const pre = document.createElement("pre");
+          pre.innerHTML = escapeHtml(b.content || "");
+          inner.appendChild(pre);
+        } else if(b.type === "list"){
+          const ul = document.createElement("ul");
+          for(const it of (b.items || [])){
+            const li = document.createElement("li");
+            li.textContent = it;
+            ul.appendChild(li);
+          }
+          inner.appendChild(ul);
+        } else if(b.type === "callout"){
+          const c = document.createElement("div");
+          const variant = b.variant || "info";
+          c.className = "callout" + (variant==="warn" ? " warn" : variant==="bad" ? " bad" : "");
+          const lines = (b.text || []).map(x => `<div>${escapeHtml(x)}</div>`).join("");
+          c.innerHTML = lines;
+          inner.appendChild(c);
+        } else {
+          const p = document.createElement("div");
+          p.className = "hint";
+          p.textContent = "(bloque sin tipo)";
+          inner.appendChild(p);
+        }
+
+        block.appendChild(inner);
+        body.appendChild(block);
+      }
+
+      card.appendChild(head);
+      card.appendChild(body);
+      elContent.appendChild(card);
+    }
+  }
+
+  function extractBlockText(b){
+    if(b.type === "pre") return `${b.title}\n\n${b.content || ""}\n`;
+    if(b.type === "list") return `${b.title}\n\n- ${(b.items || []).join("\n- ")}\n`;
+    if(b.type === "callout") return `${b.title}\n\n${(b.text || []).join("\n")}\n`;
+    return b.title;
+  }
+
+  function extractFullReportText(){
+    const parts = [];
+    for(const sec of SECTIONS){
+      parts.push(`# ${sec.title}`);
+      if(sec.tag) parts.push(`Etiqueta: ${sec.tag}`);
+      parts.push("");
+      for(const b of sec.blocks){
+        parts.push(`## ${b.title}`);
+        parts.push(extractBlockText(b).trimEnd());
+        parts.push("");
+      }
+      parts.push("\n");
+    }
+    return parts.join("\n");
+  }
+
+  // controls
+  elSearch.addEventListener("input", render);
+  elScope.addEventListener("change", render);
+
+  elCollapseAll.addEventListener("click", () => {
+    collapsed = !collapsed;
+    elCollapseAll.textContent = collapsed ? "Expandir" : "Colapsar";
+    render();
+  });
+
+  elCopyAll.addEventListener("click", async () => {
+    const txt = extractFullReportText();
+    await navigator.clipboard.writeText(txt);
+    elCopyAll.textContent = "Copiado ✓";
+    setTimeout(()=>elCopyAll.textContent="Copiar", 900);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if(e.key === "Escape"){
+      elSearch.value = "";
+      render();
+    }
+  });
+
+  // init
+  makeToc();
+  render();
+</script>
+
+</body>
+</html>
